@@ -52,11 +52,21 @@ public:
     virtual Vec2 getMaxSize() const;
 };
 
+// TODO: label
+// TODO: button
+// TODO: bitmap image
+// TODO: list view
+// TODO: toggle button
+// TODO: radio button
+// TODO: border
+// TODO: arrangement.... (vertical, horizontal, grid boxes)
+// TODO: tab view
+
 class Window
 {
     friend class Compositor;
 private:
-    // TODO: manages widgets, and draws them (name, controls and state management, borders)
+    // TODO: manages widgets, and draws them (controls and state management)
     // widget transform tree
     
     Vec2 size = { 10, 10 };
