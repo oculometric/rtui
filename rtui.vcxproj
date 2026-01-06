@@ -130,6 +130,7 @@
     <ClInclude Include="src\vec2.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\rtui.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
