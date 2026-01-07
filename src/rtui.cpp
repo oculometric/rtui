@@ -96,6 +96,8 @@ void Context::resize(Vec2 new_size, char fill_value)
 {
     if (new_size.x <= 0 || new_size.y <= 0)
         throw invalid_argument("context size must be greater than zero");
+    for (auto it = backing.begin(); it != backing.end(); ++it)
+        *it = fill_value;
     backing.resize(static_cast<size_t>(new_size.x) * static_cast<size_t>(new_size.y), fill_value);
     pitch = new_size.x;
     permitted_bounds = { { 0, 0 }, new_size };
@@ -268,6 +270,7 @@ void TerminalCompositor::setCursorPosition(Vec2 position)
 void TerminalCompositor::update()
 {
     setSize(getScreenSize());
+    setCursorVisible(false);
     // TODO: handle input
     renderWindows();
     std::string result(getSize().x * getSize().y, ' ');
