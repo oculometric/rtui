@@ -7,7 +7,7 @@
 
 // TODO: organise into files with context, widget, window, compositor in one, subcompositors in another, subwidgets in another
 
-namespace RTUI
+namespace STRN
 {
 
 static Vec2 clip(Vec2 min_size, Vec2 max_size, Vec2 available_size)

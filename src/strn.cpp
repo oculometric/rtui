@@ -1,4 +1,4 @@
-#include "rtui.h"
+#include "strn.h"
 
 #include <stdexcept>
 #include <iostream>
@@ -11,7 +11,7 @@
 	#include <poll.h>
 #endif
 
-using namespace RTUI;
+using namespace STRN;
 using namespace std;
 
 #pragma region CONTEXT

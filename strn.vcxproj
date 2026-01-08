@@ -126,12 +126,12 @@
     <Folder Include="Source Files\" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\rtui.h" />
+    <ClInclude Include="src\strn.h" />
     <ClInclude Include="src\vec2.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\rtui.cpp" />
+    <ClCompile Include="src\strn.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -1,23 +1,23 @@
 #include <chrono>
 #include <iostream>
 
-#include "rtui.h"
+#include "strn.h"
 
 int main()
 {
-    RTUI::TerminalCompositor comp;
-    RTUI::Window* window = comp.newWindow("test");
+    STRN::TerminalCompositor comp;
+    STRN::Window* window = comp.newWindow("test");
     window->setSize({ 20, 4 });
-    RTUI::Window* window2 = comp.newWindow("lucylucy");
+    STRN::Window* window2 = comp.newWindow("lucylucy");
     window2->setPosition({ 16, 8 });
     window2->setSize({ 26, 6 });
-    RTUI::Window* window3 = comp.newWindow("big guy");
+    STRN::Window* window3 = comp.newWindow("big guy");
     window3->setPosition({ 50, 2 });
     window3->setSize({ 60, 16 });
     
     window3->setRoot(
-        new RTUI::HorizontalBox({
-            new RTUI::ArtBlock(
+        new STRN::HorizontalBox({
+            new STRN::ArtBlock(
           " .             "
           " .##           "
           "  #  ..        "
@@ -29,18 +29,18 @@ int main()
           "          # -# "
           "            ## "
 , 15),
-            new RTUI::VerticalBox({
-                new RTUI::Label("i didnt want your little bitchass anyway!~"),
-                new RTUI::Label("busy woman"),
-                new RTUI::Label("but if you need my love"),
-                new RTUI::Label("my clothes are off im coming over to your place"),
-                new RTUI::Label("the quick brown fox jumps over the lazy dog. oh yeah, and shes a really cute fox too actually!"),
+            new STRN::VerticalBox({
+                new STRN::Label("i didnt want your little bitchass anyway!~"),
+                new STRN::Label("busy woman"),
+                new STRN::Label("but if you need my love"),
+                new STRN::Label("my clothes are off im coming over to your place"),
+                new STRN::Label("the quick brown fox jumps over the lazy dog. oh yeah, and shes a really cute fox too actually!"),
             })
         }));
     
-    RTUI::Label perf_label("fps: 0");
-    RTUI::Label perf_label2("dt: 0");
-    window->setRoot(new RTUI::VerticalBox({ &perf_label, &perf_label2 }));
+    STRN::Label perf_label("fps: 0");
+    STRN::Label perf_label2("dt: 0");
+    window->setRoot(new STRN::VerticalBox({ &perf_label, &perf_label2 }));
     
     size_t i = 0;
     auto begin = std::chrono::high_resolution_clock::now();

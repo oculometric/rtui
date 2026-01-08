@@ -1,6 +1,6 @@
 #pragma once
 
-namespace RTUI
+namespace STRN
 {
 
 struct Vec2
