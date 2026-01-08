@@ -1,8 +1,15 @@
 #include "rtui.h"
 
 #include <stdexcept>
-#include <Windows.h>
 #include <iostream>
+#if defined(_WIN32)
+#include <Windows.h>
+#elif defined(__linux__)
+	#include <sys/ioctl.h>
+	#include <signal.h>
+	#include <termios.h>
+	#include <poll.h>
+#endif
 
 using namespace RTUI;
 
@@ -130,13 +137,8 @@ TerminalCompositor::TerminalCompositor() : Compositor()
 #if defined(_WIN32)
     SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_PROCESSED_OUTPUT | ENABLE_WRAP_AT_EOL_OUTPUT);
 #elif defined(__linux__)
-    signal(SIGINT, linuxControlHandler);
-    signal(SIGQUIT, linuxControlHandler);
-    signal(SIGTSTP, linuxControlHandler);
-    signal(SIGWINCH, linuxResizeHandler);
     termios new_termios;
     tcgetattr(STDIN_FILENO, &new_termios);
-    tcgetattr(STDIN_FILENO, &original_termios);
 
     new_termios.c_iflag &= ~(IGNBRK | BRKINT | IXON);
     new_termios.c_lflag &= ~(ICANON | ECHO);
@@ -169,8 +171,8 @@ void TerminalCompositor::setCursorVisible(bool visible)
         info.bVisible = visible;
         SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &info);
 #elif defined(__linux__)
-        if (visible) cout << ANSI_SHOW_CURSOR;
-        else std::cout << ANSI_HIDE_CURSOR;
+        if (visible) std::cout << "\033[?25h";
+        else std::cout << "\033[?25l";
 #endif
 }
 
