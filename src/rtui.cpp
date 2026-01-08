@@ -99,63 +99,26 @@ void Context::popPermittedBounds()
     }
 }
 
+void Context::clear(char fill_value)
+{
+    for (auto it = backing.begin(); it != backing.end(); ++it)
+        *it = fill_value;
+}
+
 void Context::resize(Vec2 new_size, char fill_value)
 {
     if (new_size.x <= 0 || new_size.y <= 0)
         throw invalid_argument("context size must be greater than zero");
-    for (auto it = backing.begin(); it != backing.end(); ++it)
-        *it = fill_value;
     backing.resize(static_cast<size_t>(new_size.x) * static_cast<size_t>(new_size.y), fill_value);
     pitch = new_size.x;
     permitted_bounds = { { 0, 0 }, new_size };
 }
 
-void VerticalBox::arrange(Vec2 available_area)
-{
-    vector<int> min_heights(children.size());
-    vector<int> max_heights(children.size());
-    vector<int> calculated_heights(children.size());
-    int total_height = 0;
-    for (size_t i = 0; i < children.size(); ++i)
-    {
-        min_heights[i] = children[i]->getMinSize().y;
-        max_heights[i] = children[i]->getMaxSize().y;
-        calculated_heights[i] = min_heights[i];
-        total_height += calculated_heights[i];
-    }
+#pragma endregion
 
-    int budget = available_area.y - total_height;
-    if (budget < 0)
-    {
-        return;
-    }
+#pragma region WIDGETS
 
-    while (budget > 0)
-    {
-        bool changed = false;
-        for (size_t i = 0; i < children.size(); ++i)
-        {
-            if (calculated_heights[i] >= max_heights[i] && max_heights[i] != -1) continue;
-
-            ++calculated_heights[i];
-            changed = true;
-
-            --budget;
-            if (budget == 0) break;
-        }
-        if (!changed) break;
-    }
-    
-    int y_offset = 0;
-    for (size_t i = 0; i < children.size(); ++i)
-    {
-        children[i]->arrange(Vec2{ available_area.x, calculated_heights[i] });
-        children[i]->transform.position = Vec2{ 0, y_offset };
-        y_offset += calculated_heights[i];
-    }
-}
-
-void VerticalBox::render(Context& ctx) const
+void ArrangedBox::render(Context& ctx) const
 {
     for (auto c : children)
     {
@@ -165,9 +128,93 @@ void VerticalBox::render(Context& ctx) const
     }
 }
 
-#pragma endregion
+static int genericArrange(int budget, const vector<int>& min_constraints, const vector<int>& max_constraints, vector<int>& calculated_constraints)
+{
+    int consumed = 0;
+    calculated_constraints.resize(min_constraints.size());
+    for (size_t i = 0; i < min_constraints.size(); ++i)
+    {
+        calculated_constraints[i] = min_constraints[i];
+        consumed += calculated_constraints[i];
+    }
 
-#pragma region WIDGETS
+    if (consumed > budget)
+        return budget;
+
+    while (consumed < budget)
+    {
+        bool changed = false;
+        for (size_t i = 0; i < min_constraints.size(); ++i)
+        {
+            if (max_constraints[i] != -1 && calculated_constraints[i] >= max_constraints[i]) continue;
+
+            ++calculated_constraints[i];
+            changed = true;
+
+            ++consumed;
+            if (consumed == budget) break;
+        }
+        if (!changed) break;
+    }
+    
+    return consumed;
+}
+
+void VerticalBox::arrange(Vec2 available_area)
+{
+    vector<int> min_heights(children.size());
+    vector<int> max_heights(children.size());
+    for (size_t i = 0; i < children.size(); ++i)
+    {
+        min_heights[i] = children[i]->getMinSize().y;
+        max_heights[i] = children[i]->getMaxSize().y;
+    }
+    vector<int> calculated_heights(children.size());
+    int total_height = genericArrange(available_area.y, min_heights, max_heights, calculated_heights);
+
+    int y_offset = 0;
+    for (size_t i = 0; i < children.size(); ++i)
+    {
+        children[i]->arrange(Vec2{ available_area.x, calculated_heights[i] });
+        children[i]->transform.position = Vec2{ 0, y_offset };
+        y_offset += calculated_heights[i];
+    }
+    transform.size = Vec2{ available_area.x, total_height };
+}
+
+void HorizontalBox::arrange(Vec2 available_area)
+{
+    vector<int> min_widths(children.size());
+    vector<int> max_widths(children.size());
+    for (size_t i = 0; i < children.size(); ++i)
+    {
+        min_widths[i] = children[i]->getMinSize().x;
+        max_widths[i] = children[i]->getMaxSize().x;
+    }
+    vector<int> calculated_widths(children.size());
+    int total_width = genericArrange(available_area.x, min_widths, max_widths, calculated_widths);
+    
+    int x_offset = 0;
+    for (size_t i = 0; i < children.size(); ++i)
+    {
+        children[i]->arrange(Vec2{ calculated_widths[i], available_area.y });
+        children[i]->transform.position = Vec2{ x_offset, 0 };
+        x_offset += calculated_widths[i];
+    }
+    transform.size = Vec2{ total_width, available_area.y };
+}
+
+void ArtBlock::render(Context& ctx) const
+{
+    int offset = 0;
+    int line = 0;
+    while (offset < ascii.size())
+    {
+        ctx.drawText(Vec2{ 0, line }, ascii, offset, pitch);
+        offset += pitch;
+        ++line;
+    }
+}
 
 #pragma endregion
 
@@ -271,6 +318,8 @@ void TerminalCompositor::setCursorPosition(Vec2 position)
 
 void TerminalCompositor::update()
 {
+    // TODO: clear screen buffer!!
+    clearContext();
     setSize(getScreenSize());
     setCursorVisible(false);
     // TODO: handle input

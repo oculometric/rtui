@@ -3,7 +3,6 @@
 #include <string>
 #include <vector>
 
-#include "rtui.h"
 #include "vec2.h"
 
 // TODO: organise into files with context, widget, window, compositor in one, subcompositors in another, subwidgets in another
@@ -11,7 +10,7 @@
 namespace RTUI
 {
 
-static inline Vec2 clip(Vec2 min_size, Vec2 max_size, Vec2 available_size)
+static Vec2 clip(Vec2 min_size, Vec2 max_size, Vec2 available_size)
 {
     int x = 0;
     if (max_size.x == -1) x = available_size.x;
@@ -57,6 +56,7 @@ private:
     Context(Vec2 size, char fill_value);
     ~Context() = default;
     
+    void clear(char fill_value);
     void resize(Vec2 new_size, char fill_value);
 }; 
 
@@ -77,7 +77,7 @@ public:
     // TODO: move and copy constructors?
     virtual ~Widget() = default;
     
-    virtual void arrange(Vec2 available_area) { }
+    virtual void arrange(Vec2 available_area) { transform.size = clip(getMinSize(), getMaxSize(), available_area); }
     virtual void render(Context& ctx) const { }
     
     virtual Vec2 getMinSize() const { return Vec2{ 1, 1 }; }
@@ -92,32 +92,59 @@ public:
 public:
     Label(const std::string& _text) : text(_text) { }
     
-    void arrange(Vec2 available_area) override { transform.size = clip(getMinSize(), getMaxSize(), available_area); }
     void render(Context& ctx) const override { ctx.drawText(Vec2{ 0, 0 }, text); }
     
     Vec2 getMinSize() const override { return Vec2{ 0, 1 }; }
     Vec2 getMaxSize() const override { return Vec2{ -1, 1 }; }
 };
 
-class VerticalBox : public Widget
+class ArrangedBox : public Widget
 {
 public:
-    
+    void render(Context& ctx) const override;
+};
+
+class VerticalBox : public ArrangedBox
+{
 public:
     VerticalBox(const std::vector<Widget*>& _children) { children = _children; }
     
     void arrange(Vec2 available_area) override;
-    void render(Context& ctx) const override;
 };
 
+class HorizontalBox : public ArrangedBox
+{
+public:
+    HorizontalBox(const std::vector<Widget*>& _children) { children = _children; }
+    
+    void arrange(Vec2 available_area) override;
+};
+
+class ArtBlock : public Widget
+{
+public:
+    std::string ascii;
+    int pitch;
+    
+public:
+    ArtBlock(const std::string& _ascii, int _pitch) : ascii(_ascii), pitch(_pitch) { }
+    
+    void render(Context& ctx) const override;
+    
+    Vec2 getMinSize() const override { return Vec2{ pitch, static_cast<int>(ascii.size()) / pitch }; }
+    Vec2 getMaxSize() const override { return getMinSize(); }
+};
+
+// TODO: border
+// TODO: spacers
+// TODO: dividers
 // TODO: button
-// TODO: bitmap image
 // TODO: list view
+// TODO: tab view
+// TODO: bitmap image
 // TODO: toggle button
 // TODO: radio button
-// TODO: border
-// TODO: tab view
-// TODO: arrangement.... (vertical, horizontal, grid boxes)
+// TODO: grid boxes
 
 #pragma endregion
 
@@ -182,7 +209,8 @@ protected:
     inline Compositor() { }
     
     void renderWindows();
-    inline const Context& getContext() const { return context; }
+    const Context& getContext() const { return context; }
+    void clearContext() { context.clear(' '); } 
     void setSize(Vec2 new_size);
 }; 
 
