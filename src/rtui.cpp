@@ -12,6 +12,7 @@
 #endif
 
 using namespace RTUI;
+using namespace std;
 
 #pragma region CONTEXT
 
@@ -46,7 +47,7 @@ void Context::drawBox(Vec2 start, Vec2 size)
     draw(start + size - Vec2{ 1, 1 }, 0xD9);
 }
 
-void Context::drawText(Vec2 start, const std::string& text, size_t text_offset, size_t max_length)
+void Context::drawText(Vec2 start, const string& text, size_t text_offset, size_t max_length)
 {
     if (start.x + permitted_bounds.min.x >= permitted_bounds.max.x)
         return;
@@ -61,12 +62,12 @@ void Context::drawText(Vec2 start, const std::string& text, size_t text_offset, 
     }
 }
 
-std::vector<char>::const_iterator Context::begin() const
+vector<char>::const_iterator Context::begin() const
 {
     return backing.begin();
 }
 
-std::vector<char>::const_iterator Context::end() const
+vector<char>::const_iterator Context::end() const
 {
     return backing.end();
 }
@@ -74,36 +75,123 @@ std::vector<char>::const_iterator Context::end() const
 Context::Context(Vec2 size, char fill_value)
 {
     if (size.x <= 0 || size.y <= 0)
-        throw std::invalid_argument("context size must be greater than zero");
+        throw invalid_argument("context size must be greater than zero");
     backing.resize(static_cast<size_t>(size.x) * static_cast<size_t>(size.y), fill_value);
     pitch = size.x;
     permitted_bounds = { { 0, 0 }, size };
 }
 
-void Context::setPermittedBounds(Vec2 min, Vec2 max)
+void Context::pushPermittedBounds(Vec2 min, Vec2 max)
 {
-    permitted_bounds = { min, max };
+    bounds_stack.push_back(permitted_bounds);
+    
+    permitted_bounds = { maxi(min, 0) + permitted_bounds.min, mini(max + permitted_bounds.min, permitted_bounds.max) };
+}
+
+void Context::popPermittedBounds()
+{
+    if (bounds_stack.empty())
+        permitted_bounds = { Vec2{ 0, 0 }, Vec2{ pitch, static_cast<int>(backing.size() / pitch) } };
+    else
+    {
+        permitted_bounds = *(bounds_stack.end() - 1);
+        bounds_stack.pop_back();
+    }
 }
 
 void Context::resize(Vec2 new_size, char fill_value)
 {
     if (new_size.x <= 0 || new_size.y <= 0)
-        throw std::invalid_argument("context size must be greater than zero");
+        throw invalid_argument("context size must be greater than zero");
+    for (auto it = backing.begin(); it != backing.end(); ++it)
+        *it = fill_value;
     backing.resize(static_cast<size_t>(new_size.x) * static_cast<size_t>(new_size.y), fill_value);
     pitch = new_size.x;
     permitted_bounds = { { 0, 0 }, new_size };
 }
 
+void VerticalBox::arrange(Vec2 available_area)
+{
+    vector<int> min_heights(children.size());
+    vector<int> max_heights(children.size());
+    vector<int> calculated_heights(children.size());
+    int total_height = 0;
+    for (size_t i = 0; i < children.size(); ++i)
+    {
+        min_heights[i] = children[i]->getMinSize().y;
+        max_heights[i] = children[i]->getMaxSize().y;
+        calculated_heights[i] = min_heights[i];
+        total_height += calculated_heights[i];
+    }
+
+    int budget = available_area.y - total_height;
+    if (budget < 0)
+    {
+        return;
+    }
+
+    while (budget > 0)
+    {
+        bool changed = false;
+        for (size_t i = 0; i < children.size(); ++i)
+        {
+            if (calculated_heights[i] >= max_heights[i] && max_heights[i] != -1) continue;
+
+            ++calculated_heights[i];
+            changed = true;
+
+            --budget;
+            if (budget == 0) break;
+        }
+        if (!changed) break;
+    }
+    
+    int y_offset = 0;
+    for (size_t i = 0; i < children.size(); ++i)
+    {
+        children[i]->arrange(Vec2{ available_area.x, calculated_heights[i] });
+        children[i]->transform.position = Vec2{ 0, y_offset };
+        y_offset += calculated_heights[i];
+    }
+}
+
+void VerticalBox::render(Context& ctx) const
+{
+    for (auto c : children)
+    {
+        ctx.pushPermittedBounds(c->transform.position, c->transform.position + c->transform.size);
+        c->render(ctx);
+        ctx.popPermittedBounds();
+    }
+}
+
+#pragma endregion
+
+#pragma region WIDGETS
+
 #pragma endregion
 
 void Window::render(Context& ctx) const
 {
+    Vec2 content_area = size;
+    Vec2 content_start = position;
     if (!borderless)
     {
         ctx.drawBox(position, size);
         ctx.drawText(position + Vec2{ 1, size.y - 1 }, title, 0, size.x - 2);
         ctx.draw(position + Vec2{ size.x - 2, size.y - 1}, 0xFE);
+        content_area -= Vec2{ 2, 2 };
+        content_start += Vec2{ 1, 1 };
     }
+    
+    if (root == nullptr)
+        return;
+    
+    root->arrange(content_area);
+    
+    ctx.pushPermittedBounds(content_start, content_area + content_start);
+    root->render(ctx);
+    ctx.popPermittedBounds();
 }
 
 #pragma region COMPOSITOR
@@ -184,6 +272,7 @@ void TerminalCompositor::setCursorPosition(Vec2 position)
 void TerminalCompositor::update()
 {
     setSize(getScreenSize());
+    setCursorVisible(false);
     // TODO: handle input
     renderWindows();
     std::string result(getSize().x * getSize().y, ' ');
