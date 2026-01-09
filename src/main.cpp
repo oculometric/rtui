@@ -53,8 +53,8 @@ int main()
         comp.update();
         auto now = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> duration = now - last;        
-        perf_label.text = "fps: " + std::to_string(1.0 / duration.count());
-        perf_label2.text = "dt: " + std::to_string(duration.count() * 1000.0) + "ms";
+        perf_label.setText("fps: " + std::to_string(1.0 / duration.count()));
+        perf_label2.setText("dt: " + std::to_string(duration.count() * 1000.0) + "ms");
         auto sleep_duration = ideal_frame_time - duration;
         std::this_thread::sleep_for(sleep_duration); // prevents us from spinning too hard
     }

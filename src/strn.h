@@ -7,7 +7,8 @@
 
 #include "vec2.h"
 
-// TODO: organise into files with context, widget, window, compositor in one, subcompositors in another, subwidgets in another
+// TODO: organise into files with context, widget, window, compositor in one, subcompositors in another, subwidgets in another. reduce how much inlining there is...
+// TODO: document *everything*
 
 namespace STRN
 {
@@ -75,6 +76,7 @@ struct Char
     
     Char() = default;
     Char(char c) : value(c) { }
+    Char(int c) { value = static_cast<char>(c); }
     Char(char chr, Colour col) : value(chr), colour_bits(col) { }
 };
 
@@ -94,7 +96,7 @@ public:
     void operator=(const Context& other) = delete;
     void operator=(Context&& other) = delete;
     
-    inline Vec2 getSize() const { return permitted_bounds.size(); }
+    Vec2 getSize() const { return permitted_bounds.size(); }
     void draw(Vec2 position, Char value);
     void drawBox(Vec2 start, Vec2 size);
     void fill(Vec2 start, Vec2 size, Char value);
@@ -105,7 +107,7 @@ public:
     
     // TODO: context should handle clipping (for scrollable regions)
     // TODO: make this so that widgets can't just pop and push their own bounds....
-    void pushPermittedBounds(Vec2 min, Vec2 max);
+    void pushPermittedBounds(const Vec2& min, const Vec2& max);
     void popPermittedBounds();
     
 private:
@@ -117,17 +119,20 @@ private:
     void resize(Vec2 new_size, Char fill_value);
 }; 
 
-// TODO: proper dirty flags for the entire tree
+class Window;
+
 #pragma region WIDGETS
 
 class Widget
 {
-public:
-    Transform2 transform; // stores position within parent, and size
 protected:
     std::vector<Widget*> children;
-    Widget* parent = nullptr;
+    
+private:
+    Transform2 transform; // stores position within parent, and size
     bool visible = false;
+    Widget* parent = nullptr;
+    Window* window = nullptr;
     
 public:
     Widget() = default;
@@ -140,13 +145,25 @@ public:
     virtual Vec2 getMinSize() const { return Vec2{ 1, 1 }; }
     virtual Vec2 getMaxSize() const { return Vec2{ -1, -1 }; }
     
-    int addChild(Widget* child) { children.push_back(child); return children.size(); }
-    int getChildren() const { return children.size(); }
+    bool getVisible() const { return visible; }
+    void setVisible(bool value) { visible = value; dirty(); }
+    
+    Transform2 getTransform() const { return transform; }
+    void setTransform(const Transform2& value) { transform = value; dirty(); }
+    void setPosition(const Vec2& value) { transform.position = value; dirty(); }
+    void setSize(const Vec2& value) { transform.size = value; dirty(); }
+    
+    int getChildren() const { return static_cast<int>(children.size()); }
+    int addChild(Widget* child) { children.push_back(child); child->parent = this; child->window = window; dirty(); return static_cast<int>(children.size()); }
+    void setWindow(Window* _window) { window = _window; for (auto& c : children) c->setWindow(window); dirty(); }
+    
+protected:
+    void dirty();
 };
 
 class Label : public Widget
 {
-public:
+private:
     std::string text;
     
 public:
@@ -156,6 +173,9 @@ public:
     
     Vec2 getMinSize() const override { return Vec2{ 0, 1 }; }
     Vec2 getMaxSize() const override { return Vec2{ -1, 1 }; }
+    
+    std::string getText() const { return text; }
+    void setText(const std::string& value) { text = value; dirty(); }
 };
 
 class ArrangedBox : public Widget
@@ -182,7 +202,7 @@ public:
 
 class ArtBlock : public Widget
 {
-public:
+private:
     std::string ascii;
     int pitch;
     
@@ -193,6 +213,8 @@ public:
     
     Vec2 getMinSize() const override { return Vec2{ pitch, static_cast<int>(ascii.size()) / pitch }; }
     Vec2 getMaxSize() const override { return getMinSize(); }
+    
+    void setData(const std::string& data, int _pitch) { ascii = data; pitch = _pitch; dirty(); }
 };
 
 // TODO: border
@@ -213,7 +235,6 @@ class Window
     friend class Compositor;
 private:
     Widget* root = nullptr;
-    // TODO: manages widgets, and draws them (controls and state management)
     
     Vec2 size = { 10, 10 };
     Vec2 position = { 5, 5 };
@@ -230,17 +251,19 @@ public:
     void operator=(Window&& other) = delete;
     
     Vec2 getSize() const { return size; }
-    void setSize(Vec2 _size) { size = _size; is_dirty = true; }
+    void setSize(Vec2 _size) { size = _size; dirty(); }
     Vec2 getPosition() const { return position; }
-    void setPosition(Vec2 _position) { position = _position; is_dirty = true; }
+    void setPosition(Vec2 _position) { position = _position; dirty(); }
     std::string getTitle() const { return title; }
-    void setTitle(const std::string& _title) { title = _title; is_dirty = true; }
-    void setAllowsMinimise(bool _allows_minimise) { allows_minimise = _allows_minimise; if (!allows_minimise) is_minimised = false; is_dirty = true; }
-    void setBorderless(bool _borderless) { borderless = _borderless; is_dirty = true; }
+    void setTitle(const std::string& _title) { title = _title; dirty(); }
+    void setAllowsMinimise(bool _allows_minimise) { allows_minimise = _allows_minimise; if (!allows_minimise) is_minimised = false; dirty(); }
+    void setBorderless(bool _borderless) { borderless = _borderless; dirty(); }
     bool getMinimised() const { return is_minimised; }
-    void setRoot(Widget* _root) { root = _root; is_dirty = true; }
+    void setRoot(Widget* _root) { root = _root; root->setWindow(this); dirty(); }
     
-    void render(Context& ctx) const;
+    void render(Context& ctx);
+    void dirty() { is_dirty = true; }
+    bool getDirty() const { return is_dirty; }
     
 private:
     Window(const std::string& _title, bool _borderless, bool _minimised) : title(_title), borderless(_borderless), is_minimised(_minimised) { }

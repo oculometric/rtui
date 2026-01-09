@@ -119,7 +119,7 @@ Context::Context(Vec2 size, Char fill_value)
     permitted_bounds = { { 0, 0 }, size };
 }
 
-void Context::pushPermittedBounds(Vec2 min, Vec2 max)
+void Context::pushPermittedBounds(const Vec2& min, const Vec2& max)
 {
     bounds_stack.push_back(permitted_bounds);
     
@@ -156,11 +156,17 @@ void Context::resize(Vec2 new_size, Char fill_value)
 
 #pragma region WIDGETS
 
+void Widget::dirty()
+{
+    if (window)
+        window->dirty();
+}
+
 void ArrangedBox::render(Context& ctx) const
 {
     for (auto c : children)
     {
-        ctx.pushPermittedBounds(c->transform.position, c->transform.position + c->transform.size);
+        ctx.pushPermittedBounds(c->getTransform().position, c->getTransform().position + c->getTransform().size);
         c->render(ctx);
         ctx.popPermittedBounds();
     }
@@ -214,10 +220,10 @@ void VerticalBox::arrange(Vec2 available_area)
     for (size_t i = 0; i < children.size(); ++i)
     {
         children[i]->arrange(Vec2{ available_area.x, calculated_heights[i] });
-        children[i]->transform.position = Vec2{ 0, y_offset };
+        children[i]->setPosition(Vec2{ 0, y_offset });
         y_offset += calculated_heights[i];
     }
-    transform.size = Vec2{ available_area.x, total_height };
+    setSize(Vec2{ available_area.x, total_height });
 }
 
 void HorizontalBox::arrange(Vec2 available_area)
@@ -236,10 +242,10 @@ void HorizontalBox::arrange(Vec2 available_area)
     for (size_t i = 0; i < children.size(); ++i)
     {
         children[i]->arrange(Vec2{ calculated_widths[i], available_area.y });
-        children[i]->transform.position = Vec2{ x_offset, 0 };
+        children[i]->setPosition(Vec2{ x_offset, 0 });
         x_offset += calculated_widths[i];
     }
-    transform.size = Vec2{ total_width, available_area.y };
+    setSize(Vec2{ total_width, available_area.y });
 }
 
 void ArtBlock::render(Context& ctx) const
@@ -256,7 +262,7 @@ void ArtBlock::render(Context& ctx) const
 
 #pragma endregion
 
-void Window::render(Context& ctx) const
+void Window::render(Context& ctx)
 {
     Vec2 content_area = size;
     Vec2 content_start = position;
@@ -271,13 +277,18 @@ void Window::render(Context& ctx) const
     }
     
     if (root == nullptr)
+    {
+        is_dirty = false;
         return;
+    }
     
     root->arrange(content_area);
     
     ctx.pushPermittedBounds(content_start, content_area + content_start);
     root->render(ctx);
     ctx.popPermittedBounds();
+    
+    is_dirty = false;
 }
 
 #pragma region COMPOSITOR
@@ -292,8 +303,8 @@ Window* Compositor::newWindow(std::string title, bool borderless, bool start_min
 
 void Compositor::renderWindows()
 {
-    for (const Window* window : windows)
-        if (!window->getMinimised())
+    for (Window* window : windows)
+        if (window->getDirty() && !window->getMinimised())
             window->render(context);
 }
 
@@ -375,7 +386,8 @@ const char* getANSIColourFromBits(Colour c, bool high)
 
 void TerminalCompositor::update()
 {
-    clearContext();
+    // TODO: only clear areas which are going to be updated!
+    //clearContext();
     setSize(getScreenSize());
     setCursorVisible(false);
     // TODO: handle input
