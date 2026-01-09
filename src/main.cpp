@@ -43,27 +43,17 @@ int main()
     STRN::Label perf_label2("dt: 0");
     window->setRoot(new STRN::VerticalBox({ &perf_label, &perf_label2 }));
     
-    size_t i = 0;
-    auto begin = std::chrono::high_resolution_clock::now();
-    auto last = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> ideal_frame_time(1.0f / 120.0f);
+    constexpr std::chrono::duration<double> ideal_frame_time(1.0 / 60.0);
     
-    while (i < 100000)
+    while (true)
     {
+        auto last = std::chrono::high_resolution_clock::now();
         comp.update();
         auto now = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> duration = now - last;
-        std::this_thread::sleep_for(ideal_frame_time - duration);
-        last = now;
-        perf_label.text = "fps: " + std::to_string(1.0f / duration.count());
+        std::chrono::duration<double> duration = now - last;        
+        perf_label.text = "fps: " + std::to_string(1.0 / duration.count());
         perf_label2.text = "dt: " + std::to_string(duration.count() * 1000.0) + "ms";
-        ++i;
+        auto sleep_duration = ideal_frame_time - duration;
+        std::this_thread::sleep_for(sleep_duration); // prevents us from spinning too hard
     }
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<float> duration = end - begin;
-    std::cout << "HALTED" << std::endl;
-    std::cout << duration.count() << "s to render " << i << " frames" << std::endl;
-    std::cout << "aka " << (float)i / duration.count() << "fps";
-    
-    while (true);
 }

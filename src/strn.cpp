@@ -49,23 +49,54 @@ void Context::drawBox(Vec2 start, Vec2 size)
 
 void Context::fill(Vec2 start, Vec2 size, Char value)
 {
-    for (int y = start.y; y < start.y + size.y; ++y)
-        for (int x = start.x; x < start.x + size.x; ++x)
-            draw(Vec2{ x, y}, value);
+    if (size.x <= 0 || size.y <= 0)
+        return;
+    Vec2 actual_start = maxi(permitted_bounds.min, start + permitted_bounds.min);
+    Vec2 end = mini(permitted_bounds.max, start + permitted_bounds.min + size);
+    Vec2 actual_size = end - actual_start;
+    if (actual_size.x <= 0)
+        return;
+    
+    size_t offset = actual_start.x + (actual_start.y * pitch);
+    size_t line_start = offset;
+    for (int y = 0; y < actual_size.y; ++y)
+    {
+        for (int x = 0; x < actual_size.x; ++x, ++offset)
+            backing[offset] = value;
+        line_start += pitch;
+        offset = line_start;
+    }
 }
 
 void Context::drawText(Vec2 start, const string& text, Colour colour, size_t text_offset, size_t max_length)
 {
     if (start.x + permitted_bounds.min.x >= permitted_bounds.max.x)
         return;
+    if (start.y < 0 || start.y + permitted_bounds.min.y >= permitted_bounds.max.x)
+        return;
+    
+    Vec2 actual_start = start;
+    if (actual_start.x < 0)
+    {
+        text_offset += -actual_start.x;
+        max_length -= -actual_start.x;
+        actual_start.x = 0;
+    }
+    actual_start += permitted_bounds.min;
+    max_length = min(max_length, (size_t)permitted_bounds.max.x);
+    if ((size_t)actual_start.x + max_length > (size_t)permitted_bounds.max.x)
+        max_length -= (size_t)actual_start.x + max_length - (size_t)permitted_bounds.max.x;
+    
+    size_t offset = actual_start.x + (actual_start.y * pitch);
+    
     for (size_t text_pos = text_offset; text_pos < text_offset + max_length; ++text_pos)
     {
         if (text_pos >= text.size())
             return;
         if (text[text_pos] == '\n')
             return;
-        draw(start, { text[text_pos], colour });
-        ++start.x;
+        backing[offset] = { text[text_pos], colour };
+        ++offset;
     }
 }
 
@@ -321,7 +352,8 @@ void TerminalCompositor::setCursorVisible(bool visible)
 
 void TerminalCompositor::setCursorPosition(Vec2 position)
 {
-    std::cout << '\033' << '[' << position.y << ';' << position.x << 'H';
+    //std::cout << '\033' << '[' << position.y << ';' << position.x << 'H';
+    printf("\033[%i;%iH", position.y, position.x);
 }
 
 const char* getANSIColourFromBits(Colour c, bool high)
@@ -382,7 +414,8 @@ void TerminalCompositor::update()
         }
         result.push_back(it->value);
     }
-    std::cout << result;
+    //std::cout << result;
+    printf(result.c_str());
     setCursorPosition({ 0, 0 });
 }
 
