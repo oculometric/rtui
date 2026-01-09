@@ -35,6 +35,7 @@ int main()
             w3_builder.label("i didnt want your little bitchass anyway!~");
             w3_builder.label("busy woman");
             w3_builder.label("but if you need my love");
+            w3_builder.sizeLimiter(STRN::Vec2{ 10, 1 }, STRN::Vec2{ 1, 1 });
             w3_builder.label("my clothes are off im coming over to your place");
             w3_builder.label("the quick brown fox jumps over the lazy dog. oh yeah, and shes a really cute fox too actually!");
         w3_builder.endVerticalBox();

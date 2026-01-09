@@ -260,6 +260,27 @@ void ArtBlock::render(Context& ctx) const
     }
 }
 
+void SizeLimiter::arrange(Vec2 available_area)
+{
+    setSize(clip(min_size, max_size, available_area));
+    if (!children.empty())
+    {
+        children[0]->arrange(available_area);
+        children[0]->setPosition(Vec2{ 0, 0 });
+    }
+}
+
+void SizeLimiter::render(Context& ctx) const
+{
+    if (!children.empty())
+    {
+        auto c = children[0];
+        ctx.pushPermittedBounds(c->getTransform().position, c->getTransform().position + c->getTransform().size);
+        c->render(ctx);
+        ctx.popPermittedBounds();
+    }
+}
+
 #pragma endregion
 
 void Window::render(Context& ctx)

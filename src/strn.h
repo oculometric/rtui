@@ -15,10 +15,10 @@ namespace STRN
 
 static Vec2 clip(Vec2 min_size, Vec2 max_size, Vec2 available_size)
 {
-    int x = 0;
+    int x = min_size.x;
     if (max_size.x == -1) x = available_size.x;
     else x = std::min(available_size.x, max_size.x);
-    int y = 0;
+    int y = min_size.y;
     if (max_size.y == -1) y = available_size.y;
     else y = std::min(available_size.y, max_size.y);
     
@@ -217,6 +217,26 @@ public:
     void setData(const std::string& data, int _pitch) { ascii = data; pitch = _pitch; dirty(); }
 };
 
+class SizeLimiter : public Widget
+{
+private:
+    Vec2 max_size = Vec2{ -1, -1 };
+    Vec2 min_size = Vec2{ 1, 1 };
+    
+public:
+    SizeLimiter(const Vec2& _max_size, const Vec2& _min_size, Widget* _child) : max_size(_max_size), min_size(_min_size) { if (_child) children.push_back(_child); }
+    
+    void arrange(Vec2 available_area) override;
+    void render(Context& ctx) const override;
+    
+    Vec2 getMinSize() const override { return min_size; }
+    Vec2 getMaxSize() const override { return max_size; }
+    
+    void setMaxSize(const Vec2& value) { max_size = value; }
+    void setMinSize(const Vec2& value) { min_size = maxi(Vec2{ 0, 0 }, value); }
+};
+
+// TODO: size limiter
 // TODO: border
 // TODO: spacers
 // TODO: dividers
@@ -285,7 +305,7 @@ public:
     void endHorizontalBox() { endWidget<HorizontalBox>(); }
     VerticalBox* beginVerticalBox() { return beginWidget(new VerticalBox({}), -1); }
     void endVerticalBox() { endWidget<VerticalBox>(); }
-    
+    SizeLimiter* sizeLimiter(const Vec2& max_size, const Vec2& min_size) { return beginWidget(new SizeLimiter(max_size, min_size, nullptr), 1); }
     
     Widget* end() { return root; reset(); }
     void reset() { root = new VerticalBox({ }); current_parent_stack.push_back({ root, -1 }); }
