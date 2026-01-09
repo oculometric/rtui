@@ -1,6 +1,8 @@
 #pragma once
 
+#include <stdexcept>
 #include <string>
+#include <typeinfo>
 #include <vector>
 
 #include "vec2.h"
@@ -137,6 +139,9 @@ public:
     
     virtual Vec2 getMinSize() const { return Vec2{ 1, 1 }; }
     virtual Vec2 getMaxSize() const { return Vec2{ -1, -1 }; }
+    
+    int addChild(Widget* child) { children.push_back(child); return children.size(); }
+    int getChildren() const { return children.size(); }
 };
 
 class Label : public Widget
@@ -240,7 +245,59 @@ public:
 private:
     Window(const std::string& _title, bool _borderless, bool _minimised) : title(_title), borderless(_borderless), is_minimised(_minimised) { }
     ~Window() = default;
-}; 
+};
+
+class Builder
+{
+private:
+    Widget* root;
+    std::vector<std::pair<Widget*, int>> current_parent_stack;
+    
+public:
+    Builder() { reset(); }
+    
+    Label* label(const std::string& text) { return insertWidget(new Label(text)); }
+    ArtBlock* artBlock(const std::string& ascii, int pitch) { return insertWidget(new ArtBlock(ascii, pitch)); }
+    HorizontalBox* beginHorizontalBox() { return beginWidget(new HorizontalBox({}), -1); }
+    void endHorizontalBox() { endWidget<HorizontalBox>(); }
+    VerticalBox* beginVerticalBox() { return beginWidget(new VerticalBox({}), -1); }
+    void endVerticalBox() { endWidget<VerticalBox>(); }
+    
+    
+    Widget* end() { return root; reset(); }
+    void reset() { root = new VerticalBox({ }); current_parent_stack.push_back({ root, -1 }); }
+    
+private:
+    template<class T> T* insertWidget(T* widget)
+    {
+        auto& parent = current_parent_stack[current_parent_stack.size() - 1];
+        int children = parent.first->addChild(widget);
+        if (parent.second != -1 && children >= parent.second)
+            endWidget<Widget>();
+        return widget;
+    }
+    
+    template<class T> T* beginWidget(T* widget, int max_children)
+    {
+        auto& parent = current_parent_stack[current_parent_stack.size() - 1];
+        int children = parent.first->addChild(widget);
+        current_parent_stack.push_back({ widget, max_children });
+        return widget;
+    }
+    
+    template<class T> void endWidget()
+    {
+        if (dynamic_cast<T*>(current_parent_stack[current_parent_stack.size() - 1].first) == nullptr)
+            throw std::runtime_error((std::string("invalid endWidget called for ") + typeid(T).name()));
+        current_parent_stack.pop_back();
+        auto parent = current_parent_stack[current_parent_stack.size() - 1];
+        while (parent.second != -1 && parent.first->getChildren() >= parent.second)
+        {
+            current_parent_stack.pop_back();
+            parent = current_parent_stack[current_parent_stack.size() - 1];
+        }
+    }
+};
 
 class Compositor
 {
