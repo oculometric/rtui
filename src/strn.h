@@ -22,12 +22,66 @@ static Vec2 clip(Vec2 min_size, Vec2 max_size, Vec2 available_size)
     return Vec2{ x, y };
 }
 
+enum Colour : uint8_t
+{
+    FG_BLACK        = 0b0000,
+    FG_DARK_RED,
+    FG_DARK_GREEN,
+    FG_DARK_YELLOW,
+    FG_DARK_BLUE,
+    FG_DARK_MAGENTA,
+    FG_DARK_CYAN,
+    FG_LIGHT_GREY,
+    FG_DARK_GREY    = 0b1000,
+    FG_RED,
+    FG_GREEN,
+    FG_YELLOW,
+    FG_BLUE,
+    FG_MAGENTA,
+    FG_CYAN,
+    FG_WHITE,
+    
+    BG_BLACK        = FG_BLACK << 4,
+    BG_DARK_RED     = FG_DARK_RED << 4,
+    BG_DARK_GREEN   = FG_DARK_GREEN << 4,
+    BG_DARK_YELLOW  = FG_DARK_YELLOW << 4,
+    BG_DARK_BLUE    = FG_DARK_BLUE << 4,
+    BG_DARK_MAGENTA = FG_DARK_MAGENTA << 4,
+    BG_DARK_CYAN    = FG_DARK_CYAN << 4,
+    BG_LIGHT_GREY   = FG_LIGHT_GREY << 4,
+    BG_DARK_GREY    = FG_DARK_GREY << 4,
+    BG_RED          = FG_RED << 4,
+    BG_GREEN        = FG_GREEN << 4,
+    BG_YELLOW       = FG_YELLOW << 4,
+    BG_BLUE         = FG_BLUE << 4,
+    BG_MAGENTA      = FG_MAGENTA << 4,
+    BG_CYAN         = FG_CYAN << 4,
+    BG_WHITE        = FG_WHITE << 4
+};
+
+inline Colour operator|(Colour a, Colour b) { return (Colour)((uint8_t)a | (uint8_t)b); }
+
+// TODO: make colours a palette instead!
+#define DEFAULT_COLOUR (BG_BLACK | FG_WHITE)
+// TODO: function to invert colours (flip fg with bg)
+#define DEFAULT_INVERTED (FG_BLACK | BG_WHITE)
+
+struct Char
+{
+    char value = ' ';
+    Colour colour_bits = DEFAULT_COLOUR;
+    
+    Char() = default;
+    Char(char c) : value(c) { }
+    Char(char chr, Colour col) : value(chr), colour_bits(col) { }
+};
+
 class Context
 {
     friend class Window;
     friend class Compositor;
 private:
-    std::vector<char> backing;
+    std::vector<Char> backing;
     int pitch = 0;
     std::vector<Box2> bounds_stack;
     Box2 permitted_bounds;
@@ -39,12 +93,13 @@ public:
     void operator=(Context&& other) = delete;
     
     inline Vec2 getSize() const { return permitted_bounds.size(); }
-    void draw(Vec2 position, char value);
+    void draw(Vec2 position, Char value);
     void drawBox(Vec2 start, Vec2 size);
-    void drawText(Vec2 start, const std::string& text, size_t text_offset = 0, size_t max_length = -1);
+    void fill(Vec2 start, Vec2 size, Char value);
+    void drawText(Vec2 start, const std::string& text, Colour colour = DEFAULT_COLOUR, size_t text_offset = 0, size_t max_length = -1);
     
-    std::vector<char>::const_iterator begin() const;
-    std::vector<char>::const_iterator end() const;
+    std::vector<Char>::const_iterator begin() const;
+    std::vector<Char>::const_iterator end() const;
     
     // TODO: context should handle clipping (for scrollable regions)
     // TODO: make this so that widgets can't just pop and push their own bounds....
@@ -52,12 +107,12 @@ public:
     void popPermittedBounds();
     
 private:
-    inline Context() : Context({1, 1}, ' ') { }
-    Context(Vec2 size, char fill_value);
+    inline Context() : Context({1, 1}, { ' ' }) { }
+    Context(Vec2 size, Char fill_value);
     ~Context() = default;
     
-    void clear(char fill_value);
-    void resize(Vec2 new_size, char fill_value);
+    void clear(Char fill_value);
+    void resize(Vec2 new_size, Char fill_value);
 }; 
 
 // TODO: proper dirty flags for the entire tree
@@ -210,7 +265,7 @@ protected:
     
     void renderWindows();
     const Context& getContext() const { return context; }
-    void clearContext() { context.clear(' '); } 
+    void clearContext() { context.clear({ ' ' }); } 
     void setSize(Vec2 new_size);
 }; 
 

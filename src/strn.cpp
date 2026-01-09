@@ -16,7 +16,7 @@ using namespace std;
 
 #pragma region CONTEXT
 
-void Context::draw(Vec2 position, char value)
+void Context::draw(Vec2 position, Char value)
 {
     Vec2 real_position = position + permitted_bounds.min;
     if (real_position.x >= permitted_bounds.max.x
@@ -47,7 +47,14 @@ void Context::drawBox(Vec2 start, Vec2 size)
     draw(start + size - Vec2{ 1, 1 }, 0xD9);
 }
 
-void Context::drawText(Vec2 start, const string& text, size_t text_offset, size_t max_length)
+void Context::fill(Vec2 start, Vec2 size, Char value)
+{
+    for (int y = start.y; y < start.y + size.y; ++y)
+        for (int x = start.x; x < start.x + size.x; ++x)
+            draw(Vec2{ x, y}, value);
+}
+
+void Context::drawText(Vec2 start, const string& text, Colour colour, size_t text_offset, size_t max_length)
 {
     if (start.x + permitted_bounds.min.x >= permitted_bounds.max.x)
         return;
@@ -57,22 +64,22 @@ void Context::drawText(Vec2 start, const string& text, size_t text_offset, size_
             return;
         if (text[text_pos] == '\n')
             return;
-        draw(start, text[text_pos]);
+        draw(start, { text[text_pos], colour });
         ++start.x;
     }
 }
 
-vector<char>::const_iterator Context::begin() const
+vector<Char>::const_iterator Context::begin() const
 {
     return backing.begin();
 }
 
-vector<char>::const_iterator Context::end() const
+vector<Char>::const_iterator Context::end() const
 {
     return backing.end();
 }
 
-Context::Context(Vec2 size, char fill_value)
+Context::Context(Vec2 size, Char fill_value)
 {
     if (size.x <= 0 || size.y <= 0)
         throw invalid_argument("context size must be greater than zero");
@@ -99,13 +106,13 @@ void Context::popPermittedBounds()
     }
 }
 
-void Context::clear(char fill_value)
+void Context::clear(Char fill_value)
 {
     for (auto it = backing.begin(); it != backing.end(); ++it)
         *it = fill_value;
 }
 
-void Context::resize(Vec2 new_size, char fill_value)
+void Context::resize(Vec2 new_size, Char fill_value)
 {
     if (new_size.x <= 0 || new_size.y <= 0)
         throw invalid_argument("context size must be greater than zero");
@@ -210,7 +217,7 @@ void ArtBlock::render(Context& ctx) const
     int line = 0;
     while (offset < ascii.size())
     {
-        ctx.drawText(Vec2{ 0, line }, ascii, offset, pitch);
+        ctx.drawText(Vec2{ 0, line }, ascii, DEFAULT_COLOUR, offset, pitch);
         offset += pitch;
         ++line;
     }
@@ -225,8 +232,9 @@ void Window::render(Context& ctx) const
     if (!borderless)
     {
         ctx.drawBox(position, size);
-        ctx.drawText(position + Vec2{ 1, size.y - 1 }, title, 0, size.x - 2);
-        ctx.draw(position + Vec2{ size.x - 2, size.y - 1}, 0xFE);
+        ctx.fill(position + Vec2{ 1, size.y - 1 }, Vec2{ size.x - 2, 1 }, { ' ', DEFAULT_INVERTED });
+        ctx.drawText(position + Vec2{ 2, size.y - 1 }, title, DEFAULT_INVERTED, 0, size.x - 3);
+        ctx.draw(position + Vec2{ size.x - 2, size.y - 1 }, { (char)0xFE, DEFAULT_INVERTED });
         content_area -= Vec2{ 2, 2 };
         content_start += Vec2{ 1, 1 };
     }
@@ -263,7 +271,7 @@ void Compositor::setSize(Vec2 new_size)
     if (size == new_size)
         return;
     size = new_size;
-    context.resize(new_size, ' ');
+    context.resize(new_size, { ' ' });
 }
 
 TerminalCompositor::TerminalCompositor() : Compositor()
@@ -316,18 +324,64 @@ void TerminalCompositor::setCursorPosition(Vec2 position)
     std::cout << '\033' << '[' << position.y << ';' << position.x << 'H';
 }
 
+const char* getANSIColourFromBits(Colour c, bool high)
+{
+    static const char* low_table[16] = 
+    {
+        "30", "31", "32", "33", "34", "35", "36", "37",
+        "90", "91", "92", "93", "94", "95", "96", "97"
+    };
+    static const char* high_table[16] =
+    {
+        "40", "41", "42", "43", "44", "45", "46", "47",
+        "100", "101", "102", "103", "104", "105", "106", "107"
+    };
+    if (!high)
+        return low_table[c];
+    return high_table[c >> 4];
+}
+
 void TerminalCompositor::update()
 {
-    // TODO: clear screen buffer!!
     clearContext();
     setSize(getScreenSize());
     setCursorVisible(false);
     // TODO: handle input
     renderWindows();
-    std::string result(getSize().x * getSize().y, ' ');
-    size_t off = 0;
-    for (auto it = getContext().begin(); it != getContext().end(); ++it, ++off)
-        result[off] = *it;
+    std::string result;
+    result.reserve(getSize().x * getSize().y);
+    Colour last_colour_bits = (Colour)0xFF;
+    Colour last_high_bits = (Colour)0xF0;
+    Colour last_low_bits = (Colour)0x0F;
+    bool first_pass = true;
+    for (auto it = getContext().begin(); it != getContext().end(); ++it)
+    {
+        if (last_colour_bits != it->colour_bits || first_pass)
+        {
+            result.push_back('\033');
+            result.push_back('[');
+            Colour high_bits = (Colour)(it->colour_bits & 0xF0);
+            Colour low_bits = (Colour)(it->colour_bits & 0x0F);
+            if (last_high_bits != high_bits || first_pass)
+            {
+                result.append(getANSIColourFromBits(high_bits, true));
+            }
+            if ((last_high_bits != high_bits && last_low_bits != low_bits) || first_pass)
+            {
+                result.push_back(';');
+                last_high_bits = high_bits;
+            }
+            if (last_low_bits != low_bits || first_pass)
+            {
+                result.append(getANSIColourFromBits(low_bits, false));
+                last_low_bits = low_bits;
+            }
+            last_colour_bits = it->colour_bits;
+            result.push_back('m');
+            first_pass = false;
+        }
+        result.push_back(it->value);
+    }
     std::cout << result;
     setCursorPosition({ 0, 0 });
 }
